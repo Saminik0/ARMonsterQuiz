@@ -79,8 +79,8 @@ namespace ARMonster.UI
 
             try
             {
-                if (userNameText != null) userNameText.text = string.IsNullOrEmpty(userRecord.FirstName) ? userRecord.StudentNumber : userRecord.FirstName;
-                if (userGroupText != null) userGroupText.text = string.IsNullOrEmpty(userRecord.StudentGroup) ? "Группа AR" : userRecord.StudentGroup;
+                if (userNameText != null) userNameText.text = string.IsNullOrEmpty(userRecord.FirstName) ? $"Студент #{userRecord.StudentNumber}" : userRecord.FirstName;
+                if (userGroupText != null) userGroupText.text = string.IsNullOrEmpty(userRecord.StudentGroup) ? "Группа не указана" : userRecord.StudentGroup;
                 if (gagarikiBalanceText != null) gagarikiBalanceText.text = userRecord.Balance.ToString();
 
                 LoadInventory();

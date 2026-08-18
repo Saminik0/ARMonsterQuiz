@@ -78,6 +78,16 @@ namespace ARMonster.Core
                 arCamera = Camera.main;
             }
 
+            if (availableMonsters == null || availableMonsters.Count == 0)
+            {
+                var loaded = Resources.LoadAll<MonsterData>("");
+                if (loaded != null && loaded.Length > 0)
+                {
+                    availableMonsters = new List<MonsterData>(loaded);
+                    Debug.Log($"[ARQRCodeScanner] Автоматически загружено {availableMonsters.Count} карточек монстров из Resources.");
+                }
+            }
+
             // Инициализация BarcodeReader из ZXing с оптимизацией под QR-коды
             _barcodeReader = new BarcodeReader
             {
@@ -249,9 +259,13 @@ namespace ARMonster.Core
 
             if (!string.IsNullOrEmpty(monsterName))
             {
-                if (availableMonsters != null)
+                if (availableMonsters != null && availableMonsters.Count > 0)
                 {
-                    targetMonster = availableMonsters.Find(m => m != null && m.monsterName == monsterName);
+                    targetMonster = availableMonsters.Find(m => m != null && string.Equals(m.monsterName, monsterName, StringComparison.OrdinalIgnoreCase));
+                    if (targetMonster == null)
+                    {
+                        targetMonster = availableMonsters[0];
+                    }
                 }
 
                 if (targetMonster != null)
@@ -292,13 +306,6 @@ namespace ARMonster.Core
                 if (arCamera == null) return;
             }
 
-            GameObject prefab = data.monsterPrefab != null ? data.monsterPrefab : fallbackMonsterPrefab;
-            if (prefab == null)
-            {
-                Debug.LogError("[ARQRCodeScanner] Нет префаба для спавна ультра-эпического монстра!");
-                return;
-            }
-
             // Точка спавна — ровно перед камерой на расстоянии spawnDistance
             Vector3 spawnPos = arCamera.transform.position + (arCamera.transform.forward * spawnDistance);
             spawnPos.y += 0.05f;
@@ -308,7 +315,20 @@ namespace ARMonster.Core
             lookDirection.y = 0;
             Quaternion spawnRot = Quaternion.LookRotation(-lookDirection);
 
-            _activeUltraEpicMonster = Instantiate(prefab, spawnPos, spawnRot);
+            GameObject prefab = data.monsterPrefab != null ? data.monsterPrefab : fallbackMonsterPrefab;
+            if (prefab != null)
+            {
+                _activeUltraEpicMonster = Instantiate(prefab, spawnPos, spawnRot);
+            }
+            else
+            {
+                // Процедурный объект, если префаб не задан
+                _activeUltraEpicMonster = new GameObject("UltraEpicMonster_" + data.monsterName);
+                _activeUltraEpicMonster.transform.position = spawnPos;
+                _activeUltraEpicMonster.transform.rotation = spawnRot;
+                var sr = _activeUltraEpicMonster.AddComponent<SpriteRenderer>();
+                if (data.monsterSprite != null) sr.sprite = data.monsterSprite;
+            }
 
             // Добавляем MonsterEntity для связи с CaptureMechanic
             var entity = _activeUltraEpicMonster.GetComponent<MonsterEntity>();
@@ -329,7 +349,13 @@ namespace ARMonster.Core
                 }
                 Bounds bounds = spriteRenderer.sprite != null ? spriteRenderer.sprite.bounds : new Bounds(Vector3.zero, Vector3.one);
                 boxCollider.center = bounds.center;
-                boxCollider.size = new Vector3(bounds.size.x, bounds.size.y, Mathf.Max(0.5f, bounds.size.z));
+                boxCollider.size = new Vector3(Mathf.Max(0.4f, bounds.size.x), Mathf.Max(0.4f, bounds.size.y), Mathf.Max(0.5f, bounds.size.z));
+            }
+            else
+            {
+                var box = _activeUltraEpicMonster.GetComponent<BoxCollider>();
+                if (box == null) box = _activeUltraEpicMonster.AddComponent<BoxCollider>();
+                box.size = new Vector3(0.5f, 0.5f, 0.5f);
             }
 
             _activeUltraEpicMonster.transform.localScale = Vector3.one * monsterScale;

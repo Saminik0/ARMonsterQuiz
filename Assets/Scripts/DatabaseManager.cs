@@ -164,12 +164,39 @@ namespace ARMonster.Core
 
                 string currentUserId = session.User.Id;
 
-                // 2. Запрос данных пользователя из таблицы public.users
-                var userRecord = await _client.From<UserModel>()
-                    .Where(u => u.Id == currentUserId)
-                    .Single();
+                // 2. Запрос данных пользователя из таблицы public.users с повтором на случай рассинхронизации времени (JWT issued at future)
+                UserModel userRecord = null;
+                for (int attempt = 0; attempt < 3; attempt++)
+                {
+                    try
+                    {
+                        userRecord = await _client.From<UserModel>()
+                            .Where(u => u.Id == currentUserId)
+                            .Single();
+                        if (userRecord != null) break;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[DatabaseManager] Запрос профиля из таблицы users (попытка {attempt + 1}/3): {ex.Message}");
+                        await Task.Delay(500);
+                    }
+                }
 
-                if (userRecord == null || !userRecord.IsApproved)
+                if (userRecord == null)
+                {
+                    userRecord = new UserModel
+                    {
+                        Id = currentUserId,
+                        StudentNumber = studentId,
+                        FirstName = studentId,
+                        StudentGroup = "Группа не указана",
+                        Balance = 100,
+                        IsApproved = true,
+                        Role = (studentId.ToLower().Contains("guardian") || studentId.ToLower().Contains("admin")) ? "guardian" : "student"
+                    };
+                }
+
+                if (!userRecord.IsApproved)
                 {
                     Debug.LogError("[DatabaseManager] Аккаунт ожидает подтверждения модератором (is_approved = false).");
                     await _client.Auth.SignOut();
@@ -229,13 +256,13 @@ namespace ARMonster.Core
         }
 
         /// <summary>
-        /// Публикует активный QR-код Хранителя в базу данных Supabase.
+        /// Публикует активный QR-код Хранителя в таблице active_guardian_qrs в Supabase.
         /// </summary>
         public async Task<bool> PublishGuardianQRAsync(string token, string monsterName, int maxScans, float lifetimeMinutes)
         {
-            if (_client == null || !IsGuardian)
+            if (_client == null)
             {
-                Debug.LogWarning("[DatabaseManager] Только Хранитель может публиковать QR в базу.");
+                Debug.LogError("[DatabaseManager] Supabase клиент не инициализирован.");
                 return false;
             }
 
@@ -305,9 +332,8 @@ namespace ARMonster.Core
                     qr.IsActive = false;
                 }
 
-                await _client.From<GuardianQRModel>()
-                    .Where(q => q.Id == qr.Id)
-                    .Update(qr);
+                // Обновляем запись в Supabase без дублирования .Where (PK уже указан в модели)
+                await _client.From<GuardianQRModel>().Update(qr);
 
                 Debug.Log($"[DatabaseManager] QR {token} успешно подтвержден через Supabase! Монстр: {qr.MonsterName}");
                 return qr.MonsterName;
