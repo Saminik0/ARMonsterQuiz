@@ -83,30 +83,18 @@ namespace ARMonster.Core
                 var options = new SupabaseOptions
                 {
                     AutoRefreshToken = true,
-                    AutoConnectRealtime = false
+                    AutoConnectRealtime = true
                 };
 
                 _client = new Supabase.Client(supabaseUrl, supabaseAnonKey, options);
-
-                // Даем 2 секунды на попытку онлайн-подключения
-                var initTask = _client.InitializeAsync();
-                var timeoutTask = Task.Delay(2000);
-
-                if (await Task.WhenAny(initTask, timeoutTask) == initTask)
-                {
-                    IsInitialized = true;
-                    Debug.Log("[DatabaseManager] Supabase успешно подключен онлайн.");
-                }
-                else
-                {
-                    Debug.LogWarning("[DatabaseManager] Сервер Supabase не ответил вовремя. Включен автономный режим.");
-                    IsInitialized = true;
-                }
+                await _client.InitializeAsync();
+                IsInitialized = true;
+                Debug.Log("[DatabaseManager] Supabase клиент успешно инициализирован и подключен.");
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[DatabaseManager] Supabase недоступен ({ex.Message}). Включен автономный режим.");
-                IsInitialized = true;
+                IsInitialized = false;
+                Debug.LogError($"[DatabaseManager] Ошибка подключения к Supabase: {ex.Message}");
             }
         }
 
@@ -119,107 +107,97 @@ namespace ARMonster.Core
         }
 
         /// <summary>
-        /// Регистрация нового студента.
+        /// Регистрация нового студента в Supabase.
         /// </summary>
         public async Task<bool> Register(string studentId, string password)
         {
-            if (_client != null)
+            if (_client == null || !IsInitialized)
             {
-                try
-                {
-                    string fakeEmail = GetStudentEmail(studentId);
-                    var session = await _client.Auth.SignUp(fakeEmail, password);
-                    if (session != null && session.User != null)
-                    {
-                        Debug.Log($"[DatabaseManager] Онлайн-регистрация успешна: {studentId}");
-                        return true;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[DatabaseManager] Ошибка онлайн-регистрации: {ex.Message}");
-                }
+                Debug.LogError("[DatabaseManager] Supabase не инициализирован. Проверьте соединение с интернетом и статус проекта Supabase.");
+                return false;
             }
 
-            // В автономном режиме регистрация всегда успешна
-            Debug.Log($"[DatabaseManager] Автономная регистрация пользователя {studentId} завершена.");
-            return true;
+            try
+            {
+                string fakeEmail = GetStudentEmail(studentId);
+                var session = await _client.Auth.SignUp(fakeEmail, password);
+
+                if (session == null || session.User == null)
+                {
+                    Debug.LogError("[DatabaseManager] Не удалось создать пользователя в Supabase Auth.");
+                    return false;
+                }
+
+                Debug.Log($"[DatabaseManager] Регистрация успешна! Пользователь {studentId} создан в Supabase Auth (id: {session.User.Id}).");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DatabaseManager] Ошибка при регистрации в Supabase: {ex.Message}");
+                return false;
+            }
         }
 
         /// <summary>
-        /// Вход в систему с поддержкой как онлайн-сервера Supabase, так и автономного режима.
+        /// Вход в систему через Supabase с проверкой статуса is_approved и определением роли.
         /// </summary>
         public async Task<bool> Login(string studentId, string password)
         {
-            // 1. Пробуем онлайн-вход через Supabase
-            if (_client != null)
+            if (_client == null || !IsInitialized)
             {
-                try
-                {
-                    string fakeEmail = GetStudentEmail(studentId);
-                    var loginTask = _client.Auth.SignInWithPassword(fakeEmail, password);
-                    var timeoutTask = Task.Delay(3000);
-
-                    if (await Task.WhenAny(loginTask, timeoutTask) == loginTask)
-                    {
-                        var session = await loginTask;
-                        if (session != null && session.User != null)
-                        {
-                            string currentUserId = session.User.Id;
-                            var userRecord = await _client.From<UserModel>()
-                                .Where(u => u.Id == currentUserId)
-                                .Single();
-
-                            if (userRecord != null && userRecord.IsApproved)
-                            {
-                                CurrentUser = userRecord;
-                                IsUserApproved = true;
-                                await LoadUserData();
-
-                                PlayerPrefs.SetString("saved_studentId", studentId);
-                                PlayerPrefs.SetString("saved_pwd", password);
-                                PlayerPrefs.Save();
-
-                                Debug.Log($"[DatabaseManager] Онлайн-авторизация успешна! Пользователь: {studentId}, Роль: {UserRole}");
-                                return true;
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[DatabaseManager] Онлайн-вход не удался ({ex.Message}), переключаемся в автономный режим...");
-                }
+                Debug.LogError("[DatabaseManager] Нет подключения к серверу Supabase.");
+                return false;
             }
 
-            // 2. Автономный режим (если сервер недоступен или заблокирован)
-            Debug.Log($"[DatabaseManager] Вход в АВТОНОМНОМ режиме для: {studentId}");
-
-            string role = "student";
-            string lowerId = studentId.ToLower();
-            string lowerPwd = password.ToLower();
-            if (lowerId.Contains("guardian") || lowerId.Contains("admin") || lowerId.Contains("хранитель") || lowerPwd.Contains("guardian") || lowerPwd.Contains("admin"))
+            try
             {
-                role = "guardian";
+                string fakeEmail = GetStudentEmail(studentId);
+
+                // 1. Авторизация в Supabase Auth
+                var session = await _client.Auth.SignInWithPassword(fakeEmail, password);
+
+                if (session == null || session.User == null)
+                {
+                    Debug.LogError("[DatabaseManager] Неверный логин или пароль.");
+                    return false;
+                }
+
+                string currentUserId = session.User.Id;
+
+                // 2. Запрос данных пользователя из таблицы public.users
+                var userRecord = await _client.From<UserModel>()
+                    .Where(u => u.Id == currentUserId)
+                    .Single();
+
+                if (userRecord == null || !userRecord.IsApproved)
+                {
+                    Debug.LogError("[DatabaseManager] Аккаунт ожидает подтверждения модератором (is_approved = false).");
+                    await _client.Auth.SignOut();
+                    CurrentUser = null;
+                    IsUserApproved = false;
+                    return false;
+                }
+
+                CurrentUser = userRecord;
+                IsUserApproved = true;
+
+                // 3. Загрузка коллекции монстров из Supabase
+                await LoadUserData();
+                Debug.Log($"[DatabaseManager] Успешный вход в Supabase! Пользователь: {studentId}, Роль: {UserRole}, Баланс: {userRecord.Balance}");
+
+                PlayerPrefs.SetString("saved_studentId", studentId);
+                PlayerPrefs.SetString("saved_pwd", password);
+                PlayerPrefs.Save();
+
+                return true;
             }
-
-            CurrentUser = new UserModel
+            catch (Exception ex)
             {
-                Id = "local_" + studentId,
-                StudentNumber = studentId,
-                FirstName = studentId,
-                StudentGroup = "Группа AR",
-                IsApproved = true,
-                Balance = 200,
-                Role = role
-            };
-
-            IsUserApproved = true;
-            PlayerPrefs.SetString("saved_studentId", studentId);
-            PlayerPrefs.SetString("saved_pwd", password);
-            PlayerPrefs.Save();
-
-            return true;
+                Debug.LogError($"[DatabaseManager] Ошибка при входе в Supabase: {ex.Message}");
+                CurrentUser = null;
+                IsUserApproved = false;
+                return false;
+            }
         }
 
         /// <summary>

@@ -102,6 +102,34 @@ namespace ARMonster.UI
                 }
             }
 
+            if (DatabaseManager.Instance?.Client != null && DatabaseManager.Instance.CurrentUser != null)
+            {
+                try
+                {
+                    var response = await DatabaseManager.Instance.Client.From<MonsterCollectionModel>()
+                        .Where(m => m.UserId == DatabaseManager.Instance.CurrentUser.Id)
+                        .Get();
+
+                    if (response != null && response.Models != null)
+                    {
+                        var list = new List<string>();
+                        foreach (var m in response.Models)
+                        {
+                            if (!string.IsNullOrEmpty(m.MonsterId) && !list.Contains(m.MonsterId))
+                            {
+                                list.Add(m.MonsterId);
+                            }
+                        }
+                        DatabaseManager.Instance.CatchHistory.Clear();
+                        DatabaseManager.Instance.CatchHistory.AddRange(list);
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogError($"[ProfileManager] Ошибка запроса коллекции из Supabase: {ex.Message}");
+                }
+            }
+
             var catchList = DatabaseManager.Instance?.CatchHistory ?? new List<string>();
 
             // === ОБНОВЛЯЕМ ШКАЛУ ПРОГРЕССА ===
