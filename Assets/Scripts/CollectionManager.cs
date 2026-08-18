@@ -37,7 +37,7 @@ namespace ARMonster.Core
         }
 
         /// <summary>
-        /// Добавляет имя монстра в БД Supabase (таблицы Monster_Collection и Action_Logs).
+        /// Добавляет имя монстра в коллекцию игрока (в Supabase при онлайне и в локальный кэш).
         /// </summary>
         public async void CatchMonster(string monsterName)
         {
@@ -50,42 +50,51 @@ namespace ARMonster.Core
                 return;
             }
 
-            if (DatabaseManager.Instance == null || DatabaseManager.Instance.Client?.Auth.CurrentUser == null)
+            if (DatabaseManager.Instance == null || !DatabaseManager.Instance.IsUserApproved)
             {
                 Debug.LogError("[CollectionManager] Невозможно сохранить монстра. Пользователь не авторизован.");
                 return;
             }
 
-            try
+            // Добавляем в локальную историю в памяти
+            DatabaseManager.Instance.CatchHistory.Add(monsterName);
+
+            // Если есть онлайн-соединение с Supabase Auth — пишем в облако
+            if (DatabaseManager.Instance.Client?.Auth.CurrentUser != null)
             {
-                var currentUser = DatabaseManager.Instance.Client.Auth.CurrentUser;
-
-                var newRecord = new MonsterCollectionModel
+                try
                 {
-                    UserId = currentUser.Id,
-                    MonsterId = monsterName,
-                    CapturedAt = DateTime.UtcNow
-                };
+                    var currentUser = DatabaseManager.Instance.Client.Auth.CurrentUser;
 
-                await DatabaseManager.Instance.Client.From<MonsterCollectionModel>().Insert(newRecord);
+                    var newRecord = new MonsterCollectionModel
+                    {
+                        UserId = currentUser.Id,
+                        MonsterId = monsterName,
+                        CapturedAt = DateTime.UtcNow
+                    };
 
-                DatabaseManager.Instance.CatchHistory.Add(monsterName);
+                    await DatabaseManager.Instance.Client.From<MonsterCollectionModel>().Insert(newRecord);
 
-                var actionLog = new ActionLogModel
+                    var actionLog = new ActionLogModel
+                    {
+                        UserId = currentUser.Id,
+                        ActionType = "catch_" + monsterName,
+                        Details = monsterName,
+                        Amount = 0,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await DatabaseManager.Instance.Client.From<ActionLogModel>().Insert(actionLog);
+
+                    Debug.Log($"[CollectionManager] Успех! Монстр {monsterName} сохранен в БД Supabase.");
+                }
+                catch (Exception ex)
                 {
-                    UserId = currentUser.Id,
-                    ActionType = "catch_" + monsterName,
-                    Details = monsterName,
-                    Amount = 0,
-                    CreatedAt = DateTime.UtcNow
-                };
-                await DatabaseManager.Instance.Client.From<ActionLogModel>().Insert(actionLog);
-
-                Debug.Log($"[CollectionManager] Успех! Монстр {monsterName} сохранен в БД Supabase.");
+                    Debug.LogWarning($"[CollectionManager] Ошибка онлайн-записи в БД: {ex.Message} (сохранен локально).");
+                }
             }
-            catch (Exception ex)
+            else
             {
-                Debug.LogError($"[CollectionManager] Ошибка при сохранении монстра в БД: {ex.Message}");
+                Debug.Log($"[CollectionManager] Монстр {monsterName} успешно добавлен в коллекцию (Автономный режим).");
             }
         }
     }

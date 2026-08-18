@@ -69,8 +69,8 @@ namespace ARMonster.UI
 
         public async void LoadProfile()
         {
-            var currentUser = DatabaseManager.Instance.Client?.Auth.CurrentUser;
-            if (currentUser == null)
+            var userRecord = DatabaseManager.Instance?.CurrentUser;
+            if (userRecord == null)
             {
                 Debug.LogWarning("[ProfileManager] Пользователь не авторизован.");
                 return;
@@ -78,16 +78,9 @@ namespace ARMonster.UI
 
             try
             {
-                var userRecord = await DatabaseManager.Instance.Client.From<UserModel>()
-                    .Where(u => u.Id == currentUser.Id)
-                    .Single();
-
-                if (userRecord != null)
-                {
-                    if (userNameText != null) userNameText.text = string.IsNullOrEmpty(userRecord.FirstName) ? "Не указано" : userRecord.FirstName;
-                    if (userGroupText != null) userGroupText.text = string.IsNullOrEmpty(userRecord.StudentGroup) ? "Не указано" : userRecord.StudentGroup;
-                    if (gagarikiBalanceText != null) gagarikiBalanceText.text = userRecord.Balance.ToString();
-                }
+                if (userNameText != null) userNameText.text = string.IsNullOrEmpty(userRecord.FirstName) ? userRecord.StudentNumber : userRecord.FirstName;
+                if (userGroupText != null) userGroupText.text = string.IsNullOrEmpty(userRecord.StudentGroup) ? "Группа AR" : userRecord.StudentGroup;
+                if (gagarikiBalanceText != null) gagarikiBalanceText.text = userRecord.Balance.ToString();
 
                 LoadInventory();
             }
@@ -99,9 +92,6 @@ namespace ARMonster.UI
 
         private async void LoadInventory()
         {
-            var currentUser = DatabaseManager.Instance.Client?.Auth.CurrentUser;
-            if (currentUser == null) return;
-
             // Очищаем старые карточки
             if (baytikiContentParent != null)
             {
@@ -111,56 +101,43 @@ namespace ARMonster.UI
                 }
             }
 
-            try
+            var catchList = DatabaseManager.Instance?.CatchHistory ?? new List<string>();
+
+            // === ОБНОВЛЯЕМ ШКАЛУ ПРОГРЕССА ===
+            int totalCaught = catchList.Count;
+            int totalAvailable = (availableMonsters != null && availableMonsters.Length > 0) ? availableMonsters.Length : 20;
+
+            if (progressBar != null)
             {
-                var response = await DatabaseManager.Instance.Client.From<MonsterCollectionModel>()
-                    .Where(m => m.UserId == currentUser.Id)
-                    .Get();
+                progressBar.maxValue = totalAvailable;
+                progressBar.value = totalCaught;
+            }
 
-                if (response != null && response.Models != null)
+            if (progressText != null)
+            {
+                progressText.text = $"{totalCaught} / {totalAvailable}";
+            }
+
+            // === СОЗДАЕМ КАРТОЧКИ МОНСТРОВ ===
+            if (baytikPrefab != null && baytikiContentParent != null)
+            {
+                foreach (var monsterId in catchList)
                 {
-                    // === ОБНОВЛЯЕМ ШКАЛУ ПРОГРЕССА ===
-                    int totalCaught = response.Models.Count;
-                    int totalAvailable = (availableMonsters != null && availableMonsters.Length > 0) ? availableMonsters.Length : 20;
-
-                    if (progressBar != null)
+                    GameObject go = Instantiate(baytikPrefab, baytikiContentParent);
+                    BaytikUIItem itemUI = go.GetComponent<BaytikUIItem>();
+                    
+                    if (itemUI != null)
                     {
-                        progressBar.maxValue = totalAvailable;
-                        progressBar.value = totalCaught;
-                    }
+                        Sprite mSprite = GetMonsterSprite(monsterId);
+                        itemUI.Setup(monsterId, "Пойман в игре", mSprite);
 
-                    if (progressText != null)
-                    {
-                        progressText.text = $"{totalCaught} / {totalAvailable}";
-                    }
-
-                    // === СОЗДАЕМ КАРТОЧКИ МОНСТРОВ ===
-                    if (baytikPrefab != null && baytikiContentParent != null)
-                    {
-                        foreach (var record in response.Models)
+                        string savedAvatarId = PlayerPrefs.GetString("SelectedAvatar", "");
+                        if (monsterId == savedAvatarId && mSprite != null && avatarImage != null)
                         {
-                            GameObject go = Instantiate(baytikPrefab, baytikiContentParent);
-                            BaytikUIItem itemUI = go.GetComponent<BaytikUIItem>();
-                            
-                            if (itemUI != null)
-                            {
-                                Sprite mSprite = GetMonsterSprite(record.MonsterId);
-                                string dateStr = record.CapturedAt.ToString("dd.MM.yyyy");
-                                itemUI.Setup(record.MonsterId, $"Пойман: {dateStr}", mSprite);
-
-                                string savedAvatarId = PlayerPrefs.GetString("SelectedAvatar", "");
-                                if (record.MonsterId == savedAvatarId && mSprite != null && avatarImage != null)
-                                {
-                                    avatarImage.sprite = mSprite;
-                                }
-                            }
+                            avatarImage.sprite = mSprite;
                         }
                     }
                 }
-            }
-            catch (System.Exception ex)
-            {
-                Debug.LogError($"[ProfileManager] Ошибка загрузки инвентаря: {ex.Message}");
             }
         }
 
