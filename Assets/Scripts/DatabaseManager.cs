@@ -83,18 +83,18 @@ namespace ARMonster.Core
                 var options = new SupabaseOptions
                 {
                     AutoRefreshToken = true,
-                    AutoConnectRealtime = true
+                    AutoConnectRealtime = false // Отключаем WebSocket блокировку для мгновенного старта на ПК и мобильных
                 };
 
                 _client = new Supabase.Client(supabaseUrl, supabaseAnonKey, options);
                 await _client.InitializeAsync();
                 IsInitialized = true;
-                Debug.Log("[DatabaseManager] Supabase клиент успешно инициализирован и подключен.");
+                Debug.Log("[DatabaseManager] Supabase клиент успешно инициализирован и готов к работе.");
             }
             catch (Exception ex)
             {
                 IsInitialized = false;
-                Debug.LogError($"[DatabaseManager] Ошибка подключения к Supabase: {ex.Message}");
+                Debug.LogError($"[DatabaseManager] Ошибка инициализации Supabase: {ex.Message}");
             }
         }
 

@@ -235,7 +235,8 @@ namespace ARMonster.UI
             if (passwordInput != null) passwordInput.text = string.Empty;
 
             gameObject.SetActive(true);
-            SetStatus("Вы вышли из системы.");
+            SetButtonsInteractable(true);
+            SetStatus("Вы вышли из системы. Введите данные для входа.");
 
             if (DatabaseManager.Instance != null)
             {
@@ -280,6 +281,8 @@ namespace ARMonster.UI
         {
             if (loginButton != null) loginButton.interactable = state;
             if (registerButton != null) registerButton.interactable = state;
+            if (studentIdInput != null) studentIdInput.interactable = state;
+            if (passwordInput != null) passwordInput.interactable = state;
         }
     }
 }
