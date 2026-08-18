@@ -24,13 +24,12 @@ namespace ARMonster.Core
                     return;
             }
 
-            Vector3 targetPosition = _mainCamera.transform.position;
-            // Выравниваем координату Y по высоте объекта, чтобы вращение происходило строго вокруг оси Y
-            targetPosition.y = transform.position.y;
+            Vector3 directionToCamera = _mainCamera.transform.position - transform.position;
+            directionToCamera.y = 0;
 
-            if ((targetPosition - transform.position).sqrMagnitude > 0.0001f)
+            if (directionToCamera.sqrMagnitude > 0.0001f)
             {
-                transform.LookAt(targetPosition);
+                transform.rotation = Quaternion.LookRotation(directionToCamera);
             }
         }
     }
