@@ -40,11 +40,11 @@ namespace ARMonster.Core
 
         [SerializeField]
         [Tooltip("Дистанция спавна монстра перед камерой (в метрах).")]
-        private float spawnDistance = 1.0f;
+        private float spawnDistance = 1.2f;
 
         [SerializeField]
-        [Tooltip("Фиксированный масштаб ультра-эпического монстра в AR.")]
-        private float monsterScale = 0.18f;
+        [Tooltip("Масштаб ультра-эпического монстра в AR (комфортный размер для смартфона).")]
+        private float monsterScale = 0.55f;
 
         [Header("Monster Database")]
         [SerializeField]
@@ -307,13 +307,15 @@ namespace ARMonster.Core
             }
 
             // Точка спавна — ровно перед камерой на расстоянии spawnDistance
-            Vector3 spawnPos = arCamera.transform.position + (arCamera.transform.forward * spawnDistance);
-            spawnPos.y += 0.05f;
+            Vector3 forward = arCamera.transform.forward;
+            forward.y = 0;
+            if (forward.sqrMagnitude < 0.01f) forward = arCamera.transform.forward;
+            forward.Normalize();
 
-            // Разворачиваем лицом к камере
-            Vector3 lookDirection = (arCamera.transform.position - spawnPos).normalized;
-            lookDirection.y = 0;
-            Quaternion spawnRot = Quaternion.LookRotation(-lookDirection);
+            Vector3 spawnPos = arCamera.transform.position + (forward * spawnDistance);
+            spawnPos.y = arCamera.transform.position.y - 0.15f;
+
+            Quaternion spawnRot = Quaternion.LookRotation(forward);
 
             GameObject prefab = data.monsterPrefab != null ? data.monsterPrefab : fallbackMonsterPrefab;
             if (prefab != null)
@@ -338,6 +340,14 @@ namespace ARMonster.Core
             }
             entity.Data = data;
 
+            // Добавляем динамический билборд и стабилизатор парения в AR
+            var billboard = _activeUltraEpicMonster.GetComponent<ARMonsterBillboard>();
+            if (billboard == null)
+            {
+                billboard = _activeUltraEpicMonster.AddComponent<ARMonsterBillboard>();
+            }
+            billboard.InitializeBillboard();
+
             // Настройка коллайдера для захвата прицелом
             SpriteRenderer spriteRenderer = _activeUltraEpicMonster.GetComponentInChildren<SpriteRenderer>();
             if (spriteRenderer != null)
@@ -349,13 +359,13 @@ namespace ARMonster.Core
                 }
                 Bounds bounds = spriteRenderer.sprite != null ? spriteRenderer.sprite.bounds : new Bounds(Vector3.zero, Vector3.one);
                 boxCollider.center = bounds.center;
-                boxCollider.size = new Vector3(Mathf.Max(0.4f, bounds.size.x), Mathf.Max(0.4f, bounds.size.y), Mathf.Max(0.5f, bounds.size.z));
+                boxCollider.size = new Vector3(Mathf.Max(0.6f, bounds.size.x), Mathf.Max(0.6f, bounds.size.y), Mathf.Max(0.8f, bounds.size.z));
             }
             else
             {
                 var box = _activeUltraEpicMonster.GetComponent<BoxCollider>();
                 if (box == null) box = _activeUltraEpicMonster.AddComponent<BoxCollider>();
-                box.size = new Vector3(0.5f, 0.5f, 0.5f);
+                box.size = new Vector3(0.8f, 0.8f, 0.8f);
             }
 
             _activeUltraEpicMonster.transform.localScale = Vector3.one * monsterScale;
