@@ -327,7 +327,7 @@ namespace ARMonster.Core
                 _activeUltraEpicMonster.transform.position = spawnPos;
                 _activeUltraEpicMonster.transform.rotation = spawnRot;
                 var sr = _activeUltraEpicMonster.AddComponent<SpriteRenderer>();
-                if (data.monsterSprite != null) sr.sprite = data.monsterSprite;
+                if (data.monsterAvatar != null) sr.sprite = data.monsterAvatar;
             }
 
             // Добавляем MonsterEntity для связи с CaptureMechanic
