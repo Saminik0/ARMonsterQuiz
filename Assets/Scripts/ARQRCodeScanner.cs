@@ -109,8 +109,9 @@ namespace ARMonster.Core
         private void Update()
         {
 #if UNITY_EDITOR
-            // Удобный шорткат для тестирования сканирования Хранителя в Редакторе Unity
-            if (Input.GetKeyDown(KeyCode.G))
+            // Удобный шорткат для тестирования сканирования Хранителя в Редакторе Unity (новый Input System)
+            var keyboard = UnityEngine.InputSystem.Keyboard.current;
+            if (keyboard != null && keyboard.gKey.wasPressedThisFrame)
             {
                 Debug.Log("[ARQRCodeScanner] [EDITOR DEBUG] Симуляция сканирования QR-кода Хранителя...");
                 SimulateEditorQRScan();

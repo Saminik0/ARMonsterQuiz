@@ -82,25 +82,34 @@ namespace ARMonster.UI
                 SetStatus("Восстановление сессии...");
                 SetButtonsInteractable(false);
 
-                // Ждем инициализации Supabase
-                while (DatabaseManager.Instance == null || !DatabaseManager.Instance.IsInitialized)
+                // Ждем инициализации Supabase максимум 4 секунды
+                float waitTimer = 0f;
+                while ((DatabaseManager.Instance == null || !DatabaseManager.Instance.IsInitialized) && waitTimer < 4.0f)
                 {
+                    waitTimer += Time.unscaledDeltaTime;
                     await System.Threading.Tasks.Task.Yield();
                 }
 
-                bool success = await DatabaseManager.Instance.Login(savedId, savedPwd);
-                
-                SetButtonsInteractable(true);
+                if (DatabaseManager.Instance != null && DatabaseManager.Instance.IsInitialized)
+                {
+                    bool success = await DatabaseManager.Instance.Login(savedId, savedPwd);
+                    
+                    if (success)
+                    {
+                        SetStatus("Авторизация успешна!");
+                        RouteUserAfterLogin();
+                        return;
+                    }
+                }
 
-                if (success)
-                {
-                    SetStatus("Авторизация успешна!");
-                    RouteUserAfterLogin();
-                }
-                else
-                {
-                    SetStatus("Сессия устарела. Пожалуйста, войдите снова.");
-                }
+                // Если автоматический вход не удался или истек таймаут — разблокируем интерфейс
+                SetButtonsInteractable(true);
+                if (studentIdInput != null) studentIdInput.text = savedId;
+                SetStatus("Введите пароль для входа.");
+            }
+            else
+            {
+                SetStatus("Введите логин и пароль.");
             }
         }
 
@@ -126,6 +135,21 @@ namespace ARMonster.UI
 
             SetStatus("Выполняется вход...");
             SetButtonsInteractable(false);
+
+            // Ждем инициализации Supabase, если еще не готов (с таймаутом 5 сек)
+            float waitTimer = 0f;
+            while ((DatabaseManager.Instance == null || !DatabaseManager.Instance.IsInitialized) && waitTimer < 5.0f)
+            {
+                waitTimer += Time.unscaledDeltaTime;
+                await System.Threading.Tasks.Task.Yield();
+            }
+
+            if (DatabaseManager.Instance == null || !DatabaseManager.Instance.IsInitialized)
+            {
+                SetStatus("Ошибка: Нет связи с сервером базы данных.");
+                SetButtonsInteractable(true);
+                return;
+            }
 
             bool success = await DatabaseManager.Instance.Login(studentIdInput.text, passwordInput.text);
 
