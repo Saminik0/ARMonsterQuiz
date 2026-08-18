@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 848409ee8ba454f42a5ddff137688a27, type: 3}
+  m_Name: QR_Library
+  m_EditorClassIdentifier: Unity.XR.ARSubsystems::UnityEngine.XR.ARSubsystems.XRReferenceImageLibrary
+  m_GuidLow: 5144196887362212831
+  m_GuidHigh: 16597180337929389488
+  m_DataStore:
+    m_Storage: []
+  m_Images:
+  - m_SerializedGuid:
+      m_GuidLow: 4691616269219472671
+      m_GuidHigh: 7916533706639141565
+    m_SerializedTextureGuid:
+      m_GuidLow: 12003284327728177583
+      m_GuidHigh: 14414004099296349418
+    m_Size: {x: 0.1, y: 0.1}
+    m_SpecifySize: 1
+    m_Name: Test2d
+    m_Texture: {fileID: 0}
+  - m_SerializedGuid:
+      m_GuidLow: 5274717190808411250
+      m_GuidHigh: 13550365117106471824
+    m_SerializedTextureGuid:
+      m_GuidLow: 9004024619601534965
+      m_GuidHigh: 1116396429555748075
+    m_Size: {x: 0.1, y: 0.10332997}
+    m_SpecifySize: 1
+    m_Name: kofeti
+    m_Texture: {fileID: 0}
